@@ -3,12 +3,13 @@ import pandas as pd
 import numpy as np
 import pickle
 from sklearn import preprocessing
-
 from sklearn.ensemble import RandomForestClassifier
 
-df_raw = pd.read_csv('otodom_cleaned.csv')
+# Set up page layout
+st.set_page_config(page_title='Wyceń swoje mieszkanie', page_icon='🏡', layout='wide', initial_sidebar_state='auto')
 
-# df.describe()
+# Read data
+df_raw = pd.read_csv('otodom_cleaned.csv')
 
 st.write('''
 # Wyceń swoje mieszkanie!
@@ -26,6 +27,7 @@ def user_input_features():
     city = st.sidebar.selectbox('Miasto', cities, 34)
     rooms = st.sidebar.slider('Liczba pokoi', 1, 10, 2)
     area = st.sidebar.number_input('Powierzchnia [m2]', 0, 200, 32)
+    private_offer = st.sidebar.radio("Oferta dodana przez:", ("Osoba prywatna", 'Agencja nieruchomości'))
     year = st.sidebar.slider('Rok budowy', 1900, 2021, 2016)
     zmywarka = st.sidebar.checkbox('Zmywarka')
     telewizor = st.sidebar.checkbox('Telewizor')
@@ -38,9 +40,11 @@ def user_input_features():
     monitoring = st.sidebar.checkbox('Monitoring')
     teren_zamkniety = st.sidebar.checkbox('Teren zamknięty')
 
+
     data = {'rooms': rooms,
             'area': int(area),
             'city': city,
+            'private_offer': 1 if private_offer=='Osoba prywatna' else 0,
             'year': year,
             'zmywarka': zmywarka,
             'balkon': balkon,
@@ -61,7 +65,7 @@ input_df = user_input_features()
 
 # Combines user input features with entire penguins dataset
 # This will be useful for the encoding phase
-df = df_raw.drop(columns=['total_price', 'private_offer'])
+df = df_raw.drop(columns=['total_price'])
 df = pd.concat([input_df, df], axis=0)
 
 # Encoding of ordinal features
@@ -74,6 +78,7 @@ df = df[:1]  # Selects only the first row (the user input data)
 df_pretty = df.rename(columns={'rooms': 'Liczba pokoi',
                                'area': 'Powierzchnia [m2]',
                                'city': 'Miasto',
+                               'private_offer': 'Oferta prywatna',
                                'year': 'Rok budowy',
                                'zmywarka': 'Zmywarka',
                                'balkon': 'Balkon',
@@ -86,10 +91,18 @@ df_pretty = df.rename(columns={'rooms': 'Liczba pokoi',
                                'klimatyzacja': 'Klimatyzacja',
                                'taras': 'Taras'
                                })
+
+# Display name of a city -> inverse label encoding
+df_pretty['Miasto'] = le.inverse_transform(df_pretty['Miasto'])
+
+# Hide index in the table
+blankIndex = [''] * len(df_pretty)
+df_pretty.index = blankIndex
+
 # Displays the user input features
 st.subheader('Parametry wycenianego mieszkania: ')
-st.table(df_pretty)
-
+st.table(df_pretty.iloc[:, :8])
+st.table(df_pretty.iloc[:, 8:])
 # Reads in saved classification model
 load_clf = pickle.load(open('otodom_clf.pkl', 'rb'))
 

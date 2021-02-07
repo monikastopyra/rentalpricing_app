@@ -2,10 +2,11 @@ import requests
 from bs4 import BeautifulSoup
 import csv
 import lxml.html
+import re
 
-regions = ['dolnoslaskie','kujawsko-pomorskie','lodzkie','lubuskie','malopolskie',
-           'mazowieckie','opolskie','podkarpackie','podlaskie','pomorskie','slaskie',
-           'swietokrzyskie','warminsko-mazurskie','wielkopolskie','zachodniopomorskie','lubelskie']
+regions = ['dolnoslaskie', 'kujawsko-pomorskie', 'lodzkie', 'lubuskie', 'malopolskie',
+           'mazowieckie', 'opolskie', 'podkarpackie', 'podlaskie', 'pomorskie', 'slaskie',
+           'swietokrzyskie', 'warminsko-mazurskie', 'wielkopolskie', 'zachodniopomorskie', 'lubelskie']
 
 # open csv file
 out_file = open('otodom_data.csv', 'w', newline='', encoding='utf-8')
@@ -24,7 +25,7 @@ for region in regions:
     tree = lxml.html.fromstring(response.text)
     comment = tree.xpath('//*[@id="pagerForm"]/ul/comment()')[0]
     start_pages = str(comment).find('placeholder') + len('placeholder') + 2
-    pages = str(comment)[start:].split('"')[0]
+    pages = str(comment)[start_pages:].split('"')[0]
 
     print(pages)
 
@@ -47,9 +48,8 @@ for region in regions:
             rooms = re.search('[0-9]', rooms).group(0)
             rooms = int(rooms)
 
-            price = tag.find("li", {"class": "offer-item-price"}).text.replace('zł', '').replace(' ', '').replace('/mc',
-                                                                                                                  '').replace(
-                '\n', '')
+            price = tag.find("li", {"class": "offer-item-price"}).\
+                text.replace('zł', '').replace(' ', '').replace('/mc', '').replace('\n', '')
 
             area = tag.find("li", {"class": "offer-item-area"}).text.replace(' m²', '').replace(',', '.').replace(' ',
                                                                                                                   '')

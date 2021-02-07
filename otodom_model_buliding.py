@@ -6,9 +6,10 @@ from sklearn.ensemble import RandomForestRegressor
 from sklearn.metrics import mean_squared_error, r2_score
 import matplotlib.pyplot as plt
 import pickle
+import time
 
 # read the data into Pandas DataFrame
-df = pd.read_csv('otodom_data2.csv', sep=';')
+df = pd.read_csv('otodom_data.csv', sep=';')
 # print(df.head(5))
 
 '''
@@ -30,6 +31,7 @@ df['total_price'] = df.price + df.added_rent
 df.area = df.area.apply(lambda x: round(x))
 df.year = df.year.apply(lambda x: (x.replace('[', '').replace(']', '')))
 df.year = pd.to_numeric(df.year, errors='coerce')
+df.year = df.year.dropna().apply(lambda x: int(x))
 
 # map features to new columns
 df['zmywarka'] = df["features"].map(lambda x: 1 if 'zmywarka' in x else 0)
@@ -91,40 +93,29 @@ df_clean = ps.sqldf('select a.* \
 df_clean.drop('price', axis=1, inplace=True)
 df_clean.drop('added_rent', axis=1, inplace=True)
 df_clean.drop('ppa', axis=1, inplace=True)
-df_clean.drop('private_offer', axis=1, inplace=True)
+# df_clean.drop('private_offer', axis=1, inplace=True)
 
 # df_clean.to_csv('otodom_cleaned.csv', index=False)
 '''
 ################ MODEL BUILDING ###################
 '''
+# encode city names into numeric values
+le = preprocessing.LabelEncoder()
+le.fit(top_cities)
+df_clean.city = le.transform(df_clean.city)
+
 # separate dependent and independent variables + split to training and testing dataframes
 X_train, X_test, Y_train, Y_test = model_selection.train_test_split(df_clean.drop('total_price', axis=1),
                                                                     df_clean.total_price, test_size=0.2, random_state=0)
 print('Train size:', X_train.shape)
 print('Test size:', X_test.shape)
 
-# encode city names into numeric values
-le = preprocessing.LabelEncoder()
-le.fit(top_cities)
-X_train.city = le.transform(X_train.city)
-X_test.city = le.transform(X_test.city)
-
 # build random forest model
-clf = RandomForestRegressor(random_state=0)
+clf = RandomForestRegressor(n_estimators=600, min_samples_split=10, random_state=42, max_depth=14)
 clf.fit(X_train, Y_train)
 
 # make predictions using the testing set
 y_prediction = clf.predict(X_test)
-
-# model performance
-# mean squared error
-print('Mean squared error: %.2f'
-      % mean_squared_error(Y_test, y_prediction))
-# coefficient of determination:
-print('Coefficient of determination: %.2f'
-      % r2_score(Y_test, y_prediction))
-
-plt.scatter(Y_test, y_prediction,  color='black')
 
 # feature importance
 feature_list = list(X_train.columns)
@@ -133,7 +124,57 @@ print(feature_imp)
 
 print(X_train.columns)
 
-# y_pred_2 = (pd.Series(y_pred)/100).apply(np.round).astype(int) *100
+
+def plot_regression_results(ax, y_true, y_pred, title, scores, elapsed_time):
+    """Scatter plot of the predicted vs true targets."""
+    ax.plot([y_true.min(), y_true.max()],
+            [y_true.min(), y_true.max()],
+            '--r', linewidth=2)
+    ax.scatter(y_true, y_pred, alpha=0.2)
+
+    ax.spines['top'].set_visible(False)
+    ax.spines['right'].set_visible(False)
+    ax.get_xaxis().tick_bottom()
+    ax.get_yaxis().tick_left()
+    ax.spines['left'].set_position(('outward', 10))
+    ax.spines['bottom'].set_position(('outward', 10))
+    ax.set_xlim([y_true.min(), y_true.max()])
+    ax.set_ylim([y_true.min(), y_true.max()])
+    ax.set_xlabel('Price - measured')
+    ax.set_ylabel('Price - predicted')
+    extra = plt.Rectangle((0, 0), 0, 0, fc="w", fill=False,
+                          edgecolor='none', linewidth=0)
+    ax.legend([extra], [scores], loc='upper left')
+    title = title + '\n Evaluation in {:.2f} seconds'.format(elapsed_time)
+    ax.set_title(title)
+
+
+fig, axs = plt.subplots(1, 1, figsize=(9, 7))
+axs = np.ravel(axs)
+for ax in axs:
+    start_time = time.time()
+
+    clf.fit(X_train, Y_train)
+    # Make predictions using the testing set
+    y_pred = clf.predict(X_test)
+    # The mean squared error
+    print('Mean squared error: %.2f'
+          % mean_squared_error(Y_test, y_pred))
+    # The coefficient of determination: 1 is perfect prediction
+    print('Coefficient of determination: %.2f'
+          % r2_score(Y_test, y_pred))
+
+    elapsed_time = time.time() - start_time
+
+    plot_regression_results(
+        ax, Y_test, y_pred,
+        'Random Forest',
+        (r'R^2={:.2f}' + '\n' + r'Mean Squared Error = {:.2f}').format
+        (r2_score(Y_test, y_pred), mean_squared_error(Y_test, y_pred)), elapsed_time)
+
+plt.tight_layout()
+plt.subplots_adjust(top=0.9)
+plt.show()
 
 # SAVE THE MODEL
 pickle.dump(clf, open('otodom_clf.pkl', 'wb'))
